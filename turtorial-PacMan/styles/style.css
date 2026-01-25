@@ -1,0 +1,13 @@
+body{
+    text-align: center;
+    background-color: rgb(59, 60, 70);
+}
+
+h1 {
+    color: rgb(198, 216, 221);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#board {
+    background-color: black;
+}

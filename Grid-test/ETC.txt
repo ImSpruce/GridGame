@@ -1,0 +1,99 @@
+
+
+Usefull site for multilayering with canvases:
+https://petaccio.com.ar/2016/05/20/Multi-layer-canvas-in-Javascript/
+
+
+switch to 64px or 128px or even 256px Tiles and change canvas size acordiingly
+if zoomed out simplyfy
+
+
+Implement wave function collapse map generation.
+
+
+IDEAS:
+
+Tier 1:
+
+resources:
+            Gold,
+            Wood,
+            Stone
+Tiles:
+            Forest -> Wood
+            Stone -> Stone
+            Gold -> Gold
+            Plains -> buildings
+
+Buildings:
+            Lumber Camp -> Wood | needs Forest
+            Quarry -> Stone | Needs Stone
+            Mine -> Gold | needs Gold Tile
+            Monument -> Win Condition
+
+
+Tier 2:
+Population -> Needs Food
+Buildings need workers
+Houses increase Population Cap
+Population grows over time if housing is availabel
+
+-> simple food system no starvation only limits growth
+
+resources deplete if harvested.
+
+Water Tiles for fishing
+
+Tier 3:
+Enemies
+Military Buildings -> Archer Camp, Towers, etc
+Soldieres -> require population, food and arms,
+Map fog of war
+Trade Routes
+Tech Tree -> Sience Building
+Disasters -> Fires, Droughts -> Buildings to withstand -> Fire fighters, etc.
+Buildings have Upkeep cost
+
+Ships
+
+==============================================================================================================
+==============================================    23.01.2026    ==============================================
+==============================================================================================================
+Core:
+- Tile (Terrain)
+- Building (auf Tile)
+- Map (2D Array von Tiles)
+
+Rendering:
+- Layers: World, Buildings, Effects(optional), UI
+- DrawOrder = ["world","buildings","ui"]
+
+Camera:
+- x, y, zoom
+- Clamp Camera korrekt berücksichtigen Banner / UI
+- Maus-Screen -> World Koordinaten
+
+Input:
+- Keyboard
+- Mouse (World vs UI)
+- Drag & Zoom
+
+UI:
+- Banner / Menüs / Auswahl
+- Maus-Hover / Ghost-Building
+
+Assets:
+- TILE_IMAGES
+- BUILDING_IMAGES
+- UI_IMAGES
+
+
+
+Canvas / Board: dynamisch auf window.resize
+Camera: World-space, clamp berücksichtigt UI und Zoom
+Layers: World, Buildings, Effects, UI
+UI: Screen-space, relativ zur Canvas-Größe
+Input: Maus → World-Koordinaten immer dynamisch
+TileMap: World-space, Buildings als property
+Rendering: Zoom & Layer korrekt getrennt
+

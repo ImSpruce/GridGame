@@ -1,7 +1,10 @@
+/*Credit:
+---COMPLETE UI BOOK STYLES PACK LICENSE---
+By Crusenho Agus Hennihuno - https://crusenho.itch.io/complete-ui-book-styles-pack
+*/
+
 /*
 TODOs / Verbesserungen
-- resizeCanvas() wird zweimal aufgerufen (in onload)
-- Einmal reicht nach Layer-Initialisierung ??
 
 - UI Layer muss nicht jeden Frame neu gezeichnet werden
 - Zeichne nur bei Resize neu
@@ -43,6 +46,11 @@ const TILE_TYPE = {
   MOUNTAIN_GOLD: 7
 };
 
+// Building Types
+const BUILDING_TYPE = {
+  GOLD_MINE: "gold_mine",
+}
+
 // Tile Images
 const TILE_IMAGES = {
   [TILE_TYPE.BASE]:           null,
@@ -55,20 +63,38 @@ const TILE_IMAGES = {
   [TILE_TYPE.MOUNTAIN_GOLD]:  null
 };
 
+// Building Images
+const BUILDING_DEFINITIONS1 = {
+  [BUILDING_TYPE.GOLD_MINE]: {
+    id: BUILDING_TYPE.GOLD_MINE,
+    name: "Gold Mine",
+
+    image: null,
+    width: TILE_SIZE,
+    height: TILE_SIZE,
+
+    cost: 200;
+
+    canBePlacedOn(tile) {
+      return tile.type === TILE_TYPE.MOUNTAIN_GOLD
+    }
+  },
+}
+
 // UI
 const UI_BANNER_HEIGHT = 200;
 let UI_IMAGES = { BANNER: null };
 
 // Camera
 const camera = {
-  x: 0, 
-  y: 0,
-  targetX: 0, 
-  targetY: 0,
-  zoom: 1, 
-  minZoom: 0.675, 
-  maxZoom: 5,
-  speed: 20, 
+  x:          0, 
+  y:          0,
+  targetX:    0, 
+  targetY:    0,
+  zoom:       1, 
+  minZoom:    0.675, 
+  maxZoom:    5,
+  speed:     20, 
   smoothness: 0.1
 };
 
@@ -155,9 +181,9 @@ class Tile {
            this.type !== TILE_TYPE.BORDER;
   }
 
-  placeBuilding(building) {
-    if (this.canPlaceBuilding()) {
-      this.building = building;
+  placeBuilding(buildingDefinition) {
+    if (this.building === null && buildingDefinition.canBePlacedOn(this)) {
+      this.building = new Building(buildingDefinition);
       this.building.tile = this;
       return true;
     }
@@ -176,13 +202,14 @@ class Tile {
 }
 
 class Building {
-  constructor(type, image, width, height, cost) {
-    this.type = type;
-    this.image = image;
-    this.width = width;
-    this.height = height;
-    this.cost = cost;
+  constructor(definition) {
+    this.definition = definition;
+    this.tile = null;
   }
+
+  get image()  {return this.definition.image;}
+  get width()  {return this.definition.width;}
+  get height() {return this.definition.height;}
 }
 
 
@@ -198,6 +225,7 @@ window.onload = function() {
 
   // ---------- LAYERS ---------- \\
   layers.world = new Layer("world", WORLD_SIZE_X, WORLD_SIZE_Y, true);
+  layers.buildings = new Layer("buildings", WORLD_SIZE_X, WORLD_SIZE_Y, true);
   layers.ui = new Layer("ui", board.width, board.height, false);
 
   resizeCanvas();
@@ -207,9 +235,9 @@ window.onload = function() {
   generateAndLoadMap();
 
   // ---------- CAMERA ---------- \\
-  camera.x = WORLD_SIZE_X / 2;
-  camera.y = WORLD_SIZE_Y / 2;
-  camera.targetX = camera.x;
+  camera.x = WORLD_SIZE_X / 2;  // sets camera to center of world
+  camera.y = WORLD_SIZE_Y / 2;  
+  camera.targetX = camera.x;    // sets target to camera to prevent inital movement
   camera.targetY = camera.y;
 
   // ---------- INPUT  ---------- \\
@@ -352,6 +380,26 @@ function drawWorldLayer() {
       const tile = backgroundTiles[row][col];
       if (tile.image && tile.image.complete) {
         layer.context.drawImage(tile.image, tile.x, tile.y, tile.width, tile.height);
+      }
+    }
+  }
+}
+
+function drawBuildingLayer() {
+  const layer = layers.buildings;
+  layer.clear();
+
+  for (let row = 0; row < WORLD_ROW_COUNT; row++) {
+    for (let col = 0; col < WORLD_COLUMN_COUNT; col++) {
+      const tile = backgroundTiles[row][col];
+      if (tile.building && tile.building.image && tile.building.image.complete) {
+        layer.context.drawImage(
+          tile.building.image,
+          tile.x,
+          tile.y,
+          tile.building.width,
+          tile.building.height
+        );
       }
     }
   }
@@ -516,6 +564,10 @@ function loadImages() {
 
   TILE_IMAGES[TILE_TYPE.MOUNTAIN_GOLD] = new Image();
   TILE_IMAGES[TILE_TYPE.MOUNTAIN_GOLD].src = "../assets/mountainTile_Gold.png";
+
+
+  BUILDING_DEFINITIONS[BUILDING_TYPE.GOLD_MINE].image = new Image();
+  BUILDING_DEFINITIONS[BUILDING_TYPE.GOLD_MINE].image.src = "../assets/goldMine.png";
 
   UI_IMAGES.BANNER = new Image();
   UI_IMAGES.BANNER.src = "../assets/UI_banner.png";

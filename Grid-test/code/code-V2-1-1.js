@@ -413,6 +413,8 @@ function resizeCanvas() {
   board.height = window.innerHeight * 0.9;
   boardContext.imageSmoothingEnabled = false;
 
+  camera.minZoom = Math.max(board.width / WORLD_SIZE_X, board.height / WORLD_SIZE_Y);
+
   for (let layer of Object.values(layers)) {
     if (!layer.applyCamera) {
       layer.resize(board.width, board.height);
@@ -420,6 +422,8 @@ function resizeCanvas() {
       layer.resize(WORLD_SIZE_X, WORLD_SIZE_Y);
     }
   }
+
+  drawAllLayers();
 }
 
 // ======================================================================== \\

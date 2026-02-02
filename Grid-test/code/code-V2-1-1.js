@@ -59,6 +59,19 @@ const TILE_IMAGES = {
   [TILE_TYPE.MOUNTAIN_GOLD]:  null
 };
 
+// Resources
+const RESOURCES = {
+  WOOD: "wood",
+  STONE: "stone",
+  GOLD: "gold"
+};
+
+let playerResources = {
+  [RESOURCES.WOOD]: 100,
+  [RESOURCES.STONE]: 100,
+  [RESOURCES.GOLD]: 500
+};
+
 // Building Definitons
 const BUILDING = {
   GOLD_MINE: {
@@ -69,12 +82,55 @@ const BUILDING = {
     width: TILE_SIZE,
     height: TILE_SIZE,
 
-    cost: 200,
+    cost: {
+      [RESOURCES.WOOD]: 50,
+      [RESOURCES.STONE]: 100,
+      [RESOURCES.GOLD]: 200
+    },
 
     canBePlacedOn(tile) {
-      return tile.type === TILE_TYPE.MOUNTAIN_GOLD
+      return tile.type === TILE_TYPE.MOUNTAIN_GOLD;
     }
   },
+
+  LOGGER: {
+    id: "logger",
+    name: "Logger",
+
+    image: null,
+    width: TILE_SIZE,
+    height: TILE_SIZE,
+
+    cost: {
+      [RESOURCES.WOOD]: 25,
+      [RESOURCES.STONE]: 0,
+      [RESOURCES.GOLD]: 50
+    },
+
+    canBePlacedOn(tile) {
+      return tile.type === TILE_TYPE.GRASS_1 || 
+             tile.type === TILE_TYPE.GRASS_2;
+    }
+  },
+
+  STONE_MINE: {
+    id: "stone_mine",
+    name: "Stone Mine",
+
+    image: null,
+    width: TILE_SIZE,
+    height: TILE_SIZE,
+
+    cost: {
+      [RESOURCES.WOOD]: 75,
+      [RESOURCES.STONE]: 50,
+      [RESOURCES.GOLD]: 150
+    },
+
+    canBePlacedOn(tile) {
+      return tile.type === TILE_TYPE.MOUNTAIN;
+    }
+  }
 }
 
 // UI
@@ -83,7 +139,15 @@ const UI_BUTTON_SIZE = 80;
 const UI_BUTTON_PADDING = 20;
 const UI_BUTTON_START_X = 50;
 
-let UI_IMAGES = { BANNER: null };
+const UI_RESOURCE_SIZE = 40;
+const UI_RESOURCE_PADDING = 15;
+
+let UI_IMAGES = { 
+  BANNER: null,
+  WOOD_ICON: null,
+  STONE_ICON: null,
+  GOLD_ICON: null
+};
 
 let uiButtons = [];
 
@@ -237,19 +301,33 @@ class UIButton {
            y >= this.y && y <= this.y + this.height;
   }
 
+  canAfford() {
+    for (let resource in this.building.cost) {
+      if (playerResources[resource] < this.building.cost[resource]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   draw(ctx) {
+    const canAfford = this.canAfford();
+
     // Background
-    ctx.fillStyle = this.isSelected ? "#4a90e2" : (this.isHovered ? "#555" : "#333");
+    ctx.fillStyle = this.isSelected ? "#4a90e2" : 
+                    (!canAfford ? "#222" : (this.isHovered ? "#555" : "#333"));
     ctx.fillRect(this.x, this.y, this.width, this.height);
 
     // Border
-    ctx.strokeStyle = this.isSelected ? "#fff" : "#777";
+    ctx.strokeStyle = this.isSelected ? "#fff" : 
+                      (!canAfford ? "#444" : "#777");
     ctx.lineWidth = this.isSelected ? 3 : 2;
     ctx.strokeRect(this.x, this.y, this.width, this.height);
 
     // Building Image
     if (this.image && this.image.complete) {
       const padding = 10;
+      ctx.globalAlpha = canAfford ? 1.0 : 0.4;
       ctx.drawImage(
         this.image,
         this.x + padding,
@@ -257,17 +335,32 @@ class UIButton {
         this.width - padding * 2,
         this.height - padding * 2
       );
+      ctx.globalAlpha = 1.0;
     }
 
-    // Cost Text
-    ctx.fillStyle = "#fff";
-    ctx.font = "12px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(
-      `$${this.building.cost}`,
-      this.x + this.width / 2,
-      this.y + this.height - 5
-    );
+    // Cost Display (compact)
+    ctx.font = "bold 11px Arial";
+    ctx.textAlign = "left";
+    
+    let yOffset = this.y + this.height - 28;
+    const xStart = this.x + 5;
+    
+    if (this.building.cost[RESOURCES.WOOD] > 0) {
+      ctx.fillStyle = playerResources[RESOURCES.WOOD] >= this.building.cost[RESOURCES.WOOD] ? "#8B4513" : "#ff4444";
+      ctx.fillText(`W:${this.building.cost[RESOURCES.WOOD]}`, xStart, yOffset);
+      yOffset += 12;
+    }
+    
+    if (this.building.cost[RESOURCES.STONE] > 0) {
+      ctx.fillStyle = playerResources[RESOURCES.STONE] >= this.building.cost[RESOURCES.STONE] ? "#808080" : "#ff4444";
+      ctx.fillText(`S:${this.building.cost[RESOURCES.STONE]}`, xStart, yOffset);
+      yOffset += 12;
+    }
+    
+    if (this.building.cost[RESOURCES.GOLD] > 0) {
+      ctx.fillStyle = playerResources[RESOURCES.GOLD] >= this.building.cost[RESOURCES.GOLD] ? "#FFD700" : "#ff4444";
+      ctx.fillText(`G:${this.building.cost[RESOURCES.GOLD]}`, xStart, yOffset);
+    }
   }
 }
 
@@ -311,6 +404,7 @@ window.onload = function() {
   board.addEventListener("mousemove", mouseMoveHandler);
   board.addEventListener("wheel", wheelHandler, { passive: false });
   board.addEventListener("click", clickHandler);
+  board.addEventListener("contextmenu", (e) => e.preventDefault());  // Prevent right-click menu
 
   // ---------- RESIZE ---------- \\
   window.addEventListener("resize", resizeCanvas);
@@ -518,6 +612,77 @@ function drawUiLayer() {
   for (let button of uiButtons) {
     button.draw(layer.context);
   }
+
+  // Draw Resources (top-right of banner)
+  drawResources(layer.context);
+}
+
+function drawResources(ctx) {
+  const bannerY = board.height - UI_BANNER_HEIGHT;
+  const startX = board.width - 250;
+  const centerY = bannerY + UI_BANNER_HEIGHT / 2;
+  
+  let xOffset = 0;
+  
+  // Wood
+  if (UI_IMAGES.WOOD_ICON && UI_IMAGES.WOOD_ICON.complete) {
+    ctx.drawImage(
+      UI_IMAGES.WOOD_ICON,
+      startX + xOffset,
+      centerY - UI_RESOURCE_SIZE / 2,
+      UI_RESOURCE_SIZE,
+      UI_RESOURCE_SIZE
+    );
+  }
+  
+  ctx.fillStyle = "#8B4513";
+  ctx.font = "bold 24px Arial";
+  ctx.textAlign = "left";
+  ctx.fillText(
+    playerResources[RESOURCES.WOOD],
+    startX + xOffset + UI_RESOURCE_SIZE + 8,
+    centerY + 8
+  );
+  
+  xOffset += 80;
+  
+  // Stone
+  if (UI_IMAGES.STONE_ICON && UI_IMAGES.STONE_ICON.complete) {
+    ctx.drawImage(
+      UI_IMAGES.STONE_ICON,
+      startX + xOffset,
+      centerY - UI_RESOURCE_SIZE / 2,
+      UI_RESOURCE_SIZE,
+      UI_RESOURCE_SIZE
+    );
+  }
+  
+  ctx.fillStyle = "#808080";
+  ctx.fillText(
+    playerResources[RESOURCES.STONE],
+    startX + xOffset + UI_RESOURCE_SIZE + 8,
+    centerY + 8
+  );
+  
+  xOffset += 80;
+  
+  // Gold
+  if (UI_IMAGES.GOLD_ICON && UI_IMAGES.GOLD_ICON.complete) {
+    ctx.drawImage(
+      UI_IMAGES.GOLD_ICON,
+      startX + xOffset,
+      centerY - UI_RESOURCE_SIZE / 2,
+      UI_RESOURCE_SIZE,
+      UI_RESOURCE_SIZE
+    );
+  }
+  
+  ctx.fillStyle = "#FFD700";
+  ctx.fillText(
+    playerResources[RESOURCES.GOLD],
+    startX + xOffset + UI_RESOURCE_SIZE + 8,
+    centerY + 8
+  );
 }
 
 // ======================================================================== \\
@@ -532,6 +697,30 @@ function initializeUIButtons() {
   
   let buttonX = UI_BUTTON_START_X;
   
+  // Add Logger Button
+  uiButtons.push(new UIButton(
+    buttonX,
+    buttonY,
+    UI_BUTTON_SIZE,
+    UI_BUTTON_SIZE,
+    BUILDING.LOGGER,
+    BUILDING.LOGGER.image
+  ));
+  
+  buttonX += UI_BUTTON_SIZE + UI_BUTTON_PADDING;
+  
+  // Add Stone Mine Button
+  uiButtons.push(new UIButton(
+    buttonX,
+    buttonY,
+    UI_BUTTON_SIZE,
+    UI_BUTTON_SIZE,
+    BUILDING.STONE_MINE,
+    BUILDING.STONE_MINE.image
+  ));
+  
+  buttonX += UI_BUTTON_SIZE + UI_BUTTON_PADDING;
+  
   // Add Gold Mine Button
   uiButtons.push(new UIButton(
     buttonX,
@@ -541,10 +730,6 @@ function initializeUIButtons() {
     BUILDING.GOLD_MINE,
     BUILDING.GOLD_MINE.image
   ));
-  
-  // Add more buildings here in the future
-  // buttonX += UI_BUTTON_SIZE + UI_BUTTON_PADDING;
-  // uiButtons.push(new UIButton(...));
 }
 
 function updateUIButtons(mouseX, mouseY) {
@@ -560,11 +745,22 @@ function updateUIButtons(mouseX, mouseY) {
 function handleBuildingPlacement(tile) {
   if (!selectedBuilding || !tile) return;
   
+  // Check if player can afford the building
+  for (let resource in selectedBuilding.cost) {
+    if (playerResources[resource] < selectedBuilding.cost[resource]) {
+      console.log(`Not enough ${resource}! Need ${selectedBuilding.cost[resource]}, have ${playerResources[resource]}`);
+      return;
+    }
+  }
+  
   if (tile.placeBuilding(selectedBuilding)) {
+    // Deduct costs
+    for (let resource in selectedBuilding.cost) {
+      playerResources[resource] -= selectedBuilding.cost[resource];
+    }
+    
     console.log(`Placed ${selectedBuilding.name} at (${tile.col}, ${tile.row})`);
-    // Optionally deselect after placement
-    // selectedBuilding = null;
-    // updateButtonSelection();
+    console.log(`Resources: Wood=${playerResources[RESOURCES.WOOD]}, Stone=${playerResources[RESOURCES.STONE]}, Gold=${playerResources[RESOURCES.GOLD]}`);
   } else {
     console.log(`Cannot place ${selectedBuilding.name} here`);
   }
@@ -574,6 +770,12 @@ function updateButtonSelection() {
   for (let button of uiButtons) {
     button.isSelected = (button.building === selectedBuilding);
   }
+}
+
+function deselectBuilding() {
+  selectedBuilding = null;
+  updateButtonSelection();
+  console.log("Building deselected");
 }
 
 // ======================================================================== \\
@@ -640,6 +842,11 @@ function keyDownHandler(e) {
     keysHeld[e.key] = true;
     e.preventDefault();
   }
+  
+  // Deselect building with ESC
+  if (e.key === "Escape") {
+    deselectBuilding();
+  }
 }
 
 function keyUpHandler(e) {
@@ -650,10 +857,13 @@ function keyUpHandler(e) {
 }
 
 function mouseDownHandler(e) {
-  if (e.button === 0) {
+  if (e.button === 0) {  // Left click
     isDragging = true;
     lastMouseX = e.clientX;
     lastMouseY = e.clientY;
+    e.preventDefault();
+  } else if (e.button === 2) {  // Right click
+    deselectBuilding();
     e.preventDefault();
   }
 }
@@ -700,10 +910,14 @@ function clickHandler(e) {
   let buttonClicked = false;
   for (let button of uiButtons) {
     if (button.contains(mouseX, mouseY)) {
-      selectedBuilding = button.building;
-      updateButtonSelection();
+      if (button.canAfford()) {
+        selectedBuilding = button.building;
+        updateButtonSelection();
+        console.log(`Selected: ${selectedBuilding.name}`);
+      } else {
+        console.log(`Cannot afford ${button.building.name}!`);
+      }
       buttonClicked = true;
-      console.log(`Selected: ${selectedBuilding.name}`);
       break;
     }
   }
@@ -782,13 +996,28 @@ function loadImages() {
 
   TILE_IMAGES[TILE_TYPE.MOUNTAIN_GOLD] = new Image();
   TILE_IMAGES[TILE_TYPE.MOUNTAIN_GOLD].src = "../assets/mountainTile_Gold.png";
-
-
+ 
+  
   BUILDING.GOLD_MINE.image = new Image();
   BUILDING.GOLD_MINE.image.src = "../assets/goldMine.png";
 
+  BUILDING.LOGGER.image = new Image();
+  BUILDING.LOGGER.image.src = "../assets/logger.png";
+
+  BUILDING.STONE_MINE.image = new Image();
+  BUILDING.STONE_MINE.image.src = "../assets/stoneMine.png";
+
   UI_IMAGES.BANNER = new Image();
   UI_IMAGES.BANNER.src = "../assets/UI_banner.png";
+
+  UI_IMAGES.WOOD_ICON = new Image();
+  UI_IMAGES.WOOD_ICON.src = "../assets/wood_icon.png";
+
+  UI_IMAGES.STONE_ICON = new Image();
+  UI_IMAGES.STONE_ICON.src = "../assets/stone_icon.png";
+
+  UI_IMAGES.GOLD_ICON = new Image();
+  UI_IMAGES.GOLD_ICON.src = "../assets/gold_icon.png";
 }
 
 // ======================================================================== \\

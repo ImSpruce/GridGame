@@ -46,10 +46,6 @@ const TILE_TYPE = {
   MOUNTAIN_GOLD: 7
 };
 
-// Building Types
-const BUILDING_TYPE = {
-  GOLD_MINE: "gold_mine",
-}
 
 // Tile Images
 const TILE_IMAGES = {
@@ -63,17 +59,17 @@ const TILE_IMAGES = {
   [TILE_TYPE.MOUNTAIN_GOLD]:  null
 };
 
-// Building Images
-const BUILDING_DEFINITIONS1 = {
-  [BUILDING_TYPE.GOLD_MINE]: {
-    id: BUILDING_TYPE.GOLD_MINE,
+// Building Definitons
+const BUILDING = {
+  GOLD_MINE: {
+    id: "gold_mine",
     name: "Gold Mine",
 
     image: null,
     width: TILE_SIZE,
     height: TILE_SIZE,
 
-    cost: 200;
+    cost: 200,
 
     canBePlacedOn(tile) {
       return tile.type === TILE_TYPE.MOUNTAIN_GOLD
@@ -83,7 +79,19 @@ const BUILDING_DEFINITIONS1 = {
 
 // UI
 const UI_BANNER_HEIGHT = 200;
+const UI_BUTTON_SIZE = 80;
+const UI_BUTTON_PADDING = 20;
+const UI_BUTTON_START_X = 50;
+
 let UI_IMAGES = { BANNER: null };
+
+let uiButtons = [];
+
+// Building Selection State
+let selectedBuilding = null;
+let hoveredTile = null;
+let mouseWorldX = 0;
+let mouseWorldY = 0;
 
 // Camera
 const camera = {
@@ -212,6 +220,57 @@ class Building {
   get height() {return this.definition.height;}
 }
 
+class UIButton {
+  constructor(x, y, width, height, building, image) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.building = building;
+    this.image = image;
+    this.isHovered = false;
+    this.isSelected = false;
+  }
+
+  contains(x, y) {
+    return x >= this.x && x <= this.x + this.width &&
+           y >= this.y && y <= this.y + this.height;
+  }
+
+  draw(ctx) {
+    // Background
+    ctx.fillStyle = this.isSelected ? "#4a90e2" : (this.isHovered ? "#555" : "#333");
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+
+    // Border
+    ctx.strokeStyle = this.isSelected ? "#fff" : "#777";
+    ctx.lineWidth = this.isSelected ? 3 : 2;
+    ctx.strokeRect(this.x, this.y, this.width, this.height);
+
+    // Building Image
+    if (this.image && this.image.complete) {
+      const padding = 10;
+      ctx.drawImage(
+        this.image,
+        this.x + padding,
+        this.y + padding,
+        this.width - padding * 2,
+        this.height - padding * 2
+      );
+    }
+
+    // Cost Text
+    ctx.fillStyle = "#fff";
+    ctx.font = "12px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(
+      `$${this.building.cost}`,
+      this.x + this.width / 2,
+      this.y + this.height - 5
+    );
+  }
+}
+
 
 
 // ======================================================================== \\
@@ -226,6 +285,7 @@ window.onload = function() {
   // ---------- LAYERS ---------- \\
   layers.world = new Layer("world", WORLD_SIZE_X, WORLD_SIZE_Y, true);
   layers.buildings = new Layer("buildings", WORLD_SIZE_X, WORLD_SIZE_Y, true);
+  layers.preview = new Layer("preview", WORLD_SIZE_X, WORLD_SIZE_Y, true);
   layers.ui = new Layer("ui", board.width, board.height, false);
 
   resizeCanvas();
@@ -233,6 +293,9 @@ window.onload = function() {
   // --------- TILEMAP  --------- \\
   loadImages();
   generateAndLoadMap();
+
+  // --------- UI BUTTONS --------- \\
+  initializeUIButtons();
 
   // ---------- CAMERA ---------- \\
   camera.x = WORLD_SIZE_X / 2;  // sets camera to center of world
@@ -247,6 +310,7 @@ window.onload = function() {
   document.addEventListener("mouseup", mouseUpHandler);
   board.addEventListener("mousemove", mouseMoveHandler);
   board.addEventListener("wheel", wheelHandler, { passive: false });
+  board.addEventListener("click", clickHandler);
 
   // ---------- RESIZE ---------- \\
   window.addEventListener("resize", resizeCanvas);
@@ -265,6 +329,8 @@ function update() {
   clampCamera();
 
   drawWorldLayer();
+  drawBuildingLayer();
+  drawPreviewLayer();
   drawUiLayer();
   drawAllLayers();
 
@@ -405,10 +471,39 @@ function drawBuildingLayer() {
   }
 }
 
+function drawPreviewLayer() {
+  const layer = layers.preview;
+  layer.clear();
+
+  if (selectedBuilding && hoveredTile) {
+    const canPlace = selectedBuilding.canBePlacedOn(hoveredTile);
+    
+    // Semi-transparent overlay
+    layer.context.globalAlpha = 0.6;
+    
+    if (selectedBuilding.image && selectedBuilding.image.complete) {
+      layer.context.drawImage(
+        selectedBuilding.image,
+        hoveredTile.x,
+        hoveredTile.y,
+        selectedBuilding.width,
+        selectedBuilding.height
+      );
+    }
+    
+    // Colored overlay (green = valid, red = invalid)
+    layer.context.fillStyle = canPlace ? "rgba(0, 255, 0, 0.3)" : "rgba(255, 0, 0, 0.3)";
+    layer.context.fillRect(hoveredTile.x, hoveredTile.y, TILE_SIZE, TILE_SIZE);
+    
+    layer.context.globalAlpha = 1.0;
+  }
+}
+
 function drawUiLayer() {
   const layer = layers.ui;
   layer.clear();
 
+  // Draw Banner
   if (UI_IMAGES.BANNER && UI_IMAGES.BANNER.complete) {
     layer.context.drawImage(
       UI_IMAGES.BANNER,
@@ -417,6 +512,67 @@ function drawUiLayer() {
       layer.canvas.width,
       UI_BANNER_HEIGHT
     );
+  }
+
+  // Draw Buttons
+  for (let button of uiButtons) {
+    button.draw(layer.context);
+  }
+}
+
+// ======================================================================== \\
+// ================================== UI ================================== \\
+// ======================================================================== \\
+
+function initializeUIButtons() {
+  uiButtons = [];
+  
+  const bannerY = board.height - UI_BANNER_HEIGHT;
+  const buttonY = bannerY + (UI_BANNER_HEIGHT - UI_BUTTON_SIZE) / 2;
+  
+  let buttonX = UI_BUTTON_START_X;
+  
+  // Add Gold Mine Button
+  uiButtons.push(new UIButton(
+    buttonX,
+    buttonY,
+    UI_BUTTON_SIZE,
+    UI_BUTTON_SIZE,
+    BUILDING.GOLD_MINE,
+    BUILDING.GOLD_MINE.image
+  ));
+  
+  // Add more buildings here in the future
+  // buttonX += UI_BUTTON_SIZE + UI_BUTTON_PADDING;
+  // uiButtons.push(new UIButton(...));
+}
+
+function updateUIButtons(mouseX, mouseY) {
+  for (let button of uiButtons) {
+    button.isHovered = button.contains(mouseX, mouseY);
+  }
+}
+
+// ======================================================================== \\
+// ============================== BUILDINGS =============================== \\
+// ======================================================================== \\
+
+function handleBuildingPlacement(tile) {
+  if (!selectedBuilding || !tile) return;
+  
+  if (tile.placeBuilding(selectedBuilding)) {
+    console.log(`Placed ${selectedBuilding.name} at (${tile.col}, ${tile.row})`);
+    // Optionally deselect after placement
+    // selectedBuilding = null;
+    // updateButtonSelection();
+  } else {
+    console.log(`Cannot place ${selectedBuilding.name} here`);
+  }
+}
+
+function updateButtonSelection() {
+  for (let button of uiButtons) {
+    button.isSelected = (button.building === selectedBuilding);
   }
 }
 
@@ -471,6 +627,7 @@ function resizeCanvas() {
     }
   }
 
+  initializeUIButtons();  // Recalculate button positions
   drawAllLayers();
 }
 
@@ -502,21 +659,60 @@ function mouseDownHandler(e) {
 }
 
 function mouseMoveHandler(e) {
-  if (!isDragging) return;
+  const rect = board.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
 
-  const dx = e.clientX - lastMouseX;
-  const dy = e.clientY - lastMouseY;
+  // Update UI Button Hovers
+  updateUIButtons(mouseX, mouseY);
 
-  camera.targetX -= dx / camera.zoom;
-  camera.targetY -= dy / camera.zoom;
+  // Update World Mouse Position
+  const worldPos = screenToWorld(mouseX, mouseY);
+  mouseWorldX = worldPos.x;
+  mouseWorldY = worldPos.y;
+  hoveredTile = getTileAt(mouseWorldX, mouseWorldY);
 
-  lastMouseX = e.clientX;
-  lastMouseY = e.clientY;
+  // Handle Dragging
+  if (isDragging) {
+    const dx = e.clientX - lastMouseX;
+    const dy = e.clientY - lastMouseY;
+
+    camera.targetX -= dx / camera.zoom;
+    camera.targetY -= dy / camera.zoom;
+
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
+  }
 }
 
 function mouseUpHandler(e) {
   if (e.button === 0) {
     isDragging = false;
+  }
+}
+
+function clickHandler(e) {
+  const rect = board.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  // Check UI Button Clicks
+  let buttonClicked = false;
+  for (let button of uiButtons) {
+    if (button.contains(mouseX, mouseY)) {
+      selectedBuilding = button.building;
+      updateButtonSelection();
+      buttonClicked = true;
+      console.log(`Selected: ${selectedBuilding.name}`);
+      break;
+    }
+  }
+
+  // If no button clicked, try to place building
+  if (!buttonClicked && selectedBuilding) {
+    const worldPos = screenToWorld(mouseX, mouseY);
+    const tile = getTileAt(worldPos.x, worldPos.y);
+    handleBuildingPlacement(tile);
   }
 }
 
@@ -543,6 +739,28 @@ function mulberry32(seed) {
   };
 }
 
+function screenToWorld(screenX, screenY) {
+  // Transform screen coordinates to world coordinates
+  const centerX = board.width / 2;
+  const centerY = board.height / 2;
+  
+  const worldX = camera.x + (screenX - centerX) / camera.zoom;
+  const worldY = camera.y + (screenY - centerY) / camera.zoom;
+  
+  return { x: worldX, y: worldY };
+}
+
+function getTileAt(worldX, worldY) {
+  const col = Math.floor(worldX / TILE_SIZE);
+  const row = Math.floor(worldY / TILE_SIZE);
+  
+  if (row >= 0 && row < WORLD_ROW_COUNT && col >= 0 && col < WORLD_COLUMN_COUNT) {
+    return backgroundTiles[row][col];
+  }
+  
+  return null;
+}
+
 function loadImages() {
   TILE_IMAGES[TILE_TYPE.BASE] = new Image();
   TILE_IMAGES[TILE_TYPE.BASE].src = "../assets/baseTile.png";
@@ -566,8 +784,8 @@ function loadImages() {
   TILE_IMAGES[TILE_TYPE.MOUNTAIN_GOLD].src = "../assets/mountainTile_Gold.png";
 
 
-  BUILDING_DEFINITIONS[BUILDING_TYPE.GOLD_MINE].image = new Image();
-  BUILDING_DEFINITIONS[BUILDING_TYPE.GOLD_MINE].image.src = "../assets/goldMine.png";
+  BUILDING.GOLD_MINE.image = new Image();
+  BUILDING.GOLD_MINE.image.src = "../assets/goldMine.png";
 
   UI_IMAGES.BANNER = new Image();
   UI_IMAGES.BANNER.src = "../assets/UI_banner.png";

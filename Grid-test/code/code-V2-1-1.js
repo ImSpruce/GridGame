@@ -8,8 +8,8 @@ By Crusenho Agus Hennihuno - https://crusenho.itch.io/complete-ui-book-styles-pa
 // ============================== CONSTANTS =============================== //
 // ======================================================================== //
 
-const WORLD_ROW_COUNT = 45;
-const WORLD_COLUMN_COUNT = 80;
+const WORLD_ROW_COUNT = 27;
+const WORLD_COLUMN_COUNT = 48;
 const TILE_SIZE = 32;
 const WORLD_SIZE_X = WORLD_COLUMN_COUNT * TILE_SIZE;
 const WORLD_SIZE_Y = WORLD_ROW_COUNT * TILE_SIZE;
@@ -24,32 +24,33 @@ const UI_RESOURCE_LINE_HEIGHT = 50;
 const INCOME_INTERVAL = 2000; // Generate income every 2 seconds
 
 const TILE_TYPE = {
-  BASE: 0,
-  BORDER: 1,
-  GRASS_1: 2,
-  GRASS_2: 3,
-  FOREST: 4,
-  WATER: 5,
-  MOUNTAIN: 6,
+  BASE:          0,
+  BORDER:        1,
+  GRASS_1:       2,
+  GRASS_2:       3,
+  FOREST:        4,
+  WATER:         5,
+  MOUNTAIN:      6,
   MOUNTAIN_GOLD: 7
 };
 
 const RESOURCES = {
-  WOOD: "wood",
+  WOOD:  "wood",
   STONE: "stone",
-  GOLD: "gold"
+  GOLD:  "gold"
 };
 
 // Building definitions - acts as a template/factory
 const BUILDING_TYPES = {
   LOGGER: {
-    id: "logger",
+    id:   "logger",
     name: "Logger",
     image: null,
     cost: { [RESOURCES.WOOD]: 25, [RESOURCES.STONE]: 0, [RESOURCES.GOLD]: 50 },
     income: { [RESOURCES.WOOD]: 2 },
     canBePlacedOn: (tile) => tile.type === TILE_TYPE.GRASS_1 || tile.type === TILE_TYPE.GRASS_2
   },
+
   STONE_MINE: {
     id: "stone_mine",
     name: "Stone Mine",
@@ -58,6 +59,7 @@ const BUILDING_TYPES = {
     income: { [RESOURCES.STONE]: 3 },
     canBePlacedOn: (tile) => tile.type === TILE_TYPE.MOUNTAIN
   },
+
   GOLD_MINE: {
     id: "gold_mine",
     name: "Gold Mine",

@@ -40,7 +40,7 @@ const RESOURCES = {
   GOLD:  "gold"
 };
 
-// Building definitions - acts as a template/factory
+// Building definitions - acts as a template
 const BUILDING_TYPES = {
   LOGGER: {
     id:   "logger",
@@ -187,8 +187,7 @@ class UIButton {
     const canAfford = this.canAfford(resources);
 
     // Background
-    ctx.fillStyle = this.isSelected ? "#4a90e2" : 
-                    (!canAfford ? "#222" : (this.isHovered ? "#555" : "#333"));
+    ctx.fillStyle = this.isSelected ? "#4a90e2" : (!canAfford ? "#222" : (this.isHovered ? "#555" : "#333"));
     ctx.fillRect(this.x, this.y, this.width, this.height);
 
     // Border
@@ -910,12 +909,12 @@ class Game {
   loadImages() {
     // Tile images
     const tileImagePaths = {
-      [TILE_TYPE.BASE]: "../assets/baseTile.png",
-      [TILE_TYPE.BORDER]: "../assets/borderTile.png",
-      [TILE_TYPE.GRASS_1]: "../assets/grassTile_02.png",
-      [TILE_TYPE.GRASS_2]: "../assets/grassTile_01.png",
-      [TILE_TYPE.WATER]: "../assets/waterTile.png",
-      [TILE_TYPE.MOUNTAIN]: "../assets/mountainTile.png",
+      [TILE_TYPE.BASE]:          "../assets/baseTile.png",
+      [TILE_TYPE.BORDER]:        "../assets/borderTile.png",
+      [TILE_TYPE.GRASS_1]:       "../assets/grassTile_02.png",
+      [TILE_TYPE.GRASS_2]:       "../assets/grassTile_01.png",
+      [TILE_TYPE.WATER]:         "../assets/waterTile.png",
+      [TILE_TYPE.MOUNTAIN]:      "../assets/mountainTile.png",
       [TILE_TYPE.MOUNTAIN_GOLD]: "../assets/mountainTile_Gold.png"
     };
 

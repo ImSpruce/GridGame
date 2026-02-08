@@ -67,6 +67,16 @@ const BUILDING_TYPES = {
     cost: { [RESOURCES.WOOD]: 50, [RESOURCES.STONE]: 100, [RESOURCES.GOLD]: 200 },
     income: { [RESOURCES.GOLD]: 5 },
     canBePlacedOn: (tile) => tile.type === TILE_TYPE.MOUNTAIN_GOLD
+  },
+
+  MONUMENT: {
+    id: "monument",
+    name: "Monument",
+    image: null,
+    cost: { [RESOURCES.WOOD]: 500, [RESOURCES.STONE]: 1000, [RESOURCES.GOLD]: 2000 },
+    income: {},
+    canBePlacedOn: (tile) => tile.type === TILE_TYPE.GRASS_1 || tile.type === TILE_TYPE.GRASS_2,
+    isWinCondition: true
   }
 };
 
@@ -156,6 +166,7 @@ class Building {
   get width() { return TILE_SIZE; }
   get height() { return TILE_SIZE; }
   get income() { return this.type.income; }
+  get isWinCondition() { return this.type.isWinCondition || false; }
 }
 
 class UIButton {
@@ -186,13 +197,26 @@ class UIButton {
   draw(ctx, resources) {
     const canAfford = this.canAfford(resources);
 
+    // Special styling for Monument (win condition)
+    const isMonument = this.buildingType.isWinCondition;
+
     // Background
-    ctx.fillStyle = this.isSelected ? "#4a90e2" : (!canAfford ? "#222" : (this.isHovered ? "#555" : "#333"));
+    let bgColor;
+    if (this.isSelected) {
+      bgColor = isMonument ? "#FFD700" : "#4a90e2";
+    } else if (!canAfford) {
+      bgColor = "#222";
+    } else if (this.isHovered) {
+      bgColor = isMonument ? "#FFA500" : "#555";
+    } else {
+      bgColor = isMonument ? "#DAA520" : "#333";
+    }
+    ctx.fillStyle = bgColor;
     ctx.fillRect(this.x, this.y, this.width, this.height);
 
     // Border
-    ctx.strokeStyle = this.isSelected ? "#fff" : (!canAfford ? "#444" : "#777");
-    ctx.lineWidth = this.isSelected ? 3 : 2;
+    ctx.strokeStyle = this.isSelected ? "#fff" : (!canAfford ? "#444" : (isMonument ? "#FFD700" : "#777"));
+    ctx.lineWidth = this.isSelected ? 3 : (isMonument ? 3 : 2);
     ctx.strokeRect(this.x, this.y, this.width, this.height);
 
     // Building icon
@@ -673,6 +697,7 @@ class Game {
     this.worldGenerator = new WorldGenerator(42);
     
     this.hoveredTile = null;
+    this.gameWon = false;
   }
 
   initialize() {
@@ -686,6 +711,7 @@ class Game {
     this.layers.buildings = new Layer("buildings", WORLD_SIZE_X, WORLD_SIZE_Y, true);
     this.layers.preview = new Layer("preview", WORLD_SIZE_X, WORLD_SIZE_Y, true);
     this.layers.ui = new Layer("ui", this.canvas.width, this.canvas.height, false);
+    this.layers.victory = new Layer("victory", this.canvas.width, this.canvas.height, false);
 
     // Load assets and generate world
     this.loadImages();
@@ -774,9 +800,19 @@ class Game {
     if (tile.placeBuilding(building)) {
       this.resourceManager.deduct(building.cost);
       console.log(`Placed ${building.name} at (${tile.col}, ${tile.row})`);
+      
+      // Check for win condition
+      if (building.isWinCondition) {
+        this.triggerVictory();
+      }
     } else {
       console.log(`Cannot place ${building.name} here`);
     }
+  }
+
+  triggerVictory() {
+    this.gameWon = true;
+    console.log("VICTORY! Monument completed!");
   }
 
   getTileAt(worldX, worldY) {
@@ -794,7 +830,10 @@ class Game {
     // Update game state
     this.camera.update(this.inputManager.keysHeld);
     this.camera.clamp(this.canvas.width, this.canvas.height);
-    this.resourceManager.generateIncome(timestamp, this.tiles);
+    
+    if (!this.gameWon) {
+      this.resourceManager.generateIncome(timestamp, this.tiles);
+    }
 
     // Render
     this.render();
@@ -807,6 +846,11 @@ class Game {
     this.drawBuildingsLayer();
     this.drawPreviewLayer();
     this.drawUILayer();
+    
+    if (this.gameWon) {
+      this.drawVictoryLayer();
+    }
+    
     this.drawAllLayers();
   }
 
@@ -862,8 +906,12 @@ class Game {
         );
       }
       
-      // Color overlay (green=valid, red=invalid)
-      layer.context.fillStyle = canPlace ? "rgba(0, 255, 0, 0.3)" : "rgba(255, 0, 0, 0.3)";
+      // Color overlay (green=valid, red=invalid, gold=monument)
+      if (this.uiManager.selectedBuilding.isWinCondition) {
+        layer.context.fillStyle = canPlace ? "rgba(255, 215, 0, 0.4)" : "rgba(255, 0, 0, 0.3)";
+      } else {
+        layer.context.fillStyle = canPlace ? "rgba(0, 255, 0, 0.3)" : "rgba(255, 0, 0, 0.3)";
+      }
       layer.context.fillRect(this.hoveredTile.x, this.hoveredTile.y, TILE_SIZE, TILE_SIZE);
       
       layer.context.globalAlpha = 1.0;
@@ -874,6 +922,48 @@ class Game {
     const layer = this.layers.ui;
     layer.clear();
     this.uiManager.draw(layer.context, this.canvas.height, this.tiles);
+  }
+
+  drawVictoryLayer() {
+    const layer = this.layers.victory;
+    layer.clear();
+
+    const ctx = layer.context;
+
+    // Semi-transparent overlay
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // Victory box
+    const boxWidth = 600;
+    const boxHeight = 300;
+    const boxX = (this.canvas.width - boxWidth) / 2;
+    const boxY = (this.canvas.height - boxHeight) / 2;
+
+    // Box background with golden border
+    ctx.fillStyle = "#2a2a2a";
+    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+    
+    ctx.strokeStyle = "#FFD700";
+    ctx.lineWidth = 5;
+    ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+    // Victory text
+    ctx.fillStyle = "#FFD700";
+    ctx.font = "bold 60px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("VICTORY!", this.canvas.width / 2, this.canvas.height / 2 - 40);
+
+    // Subtitle
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "24px Arial";
+    ctx.fillText("Monument Completed!", this.canvas.width / 2, this.canvas.height / 2 + 20);
+
+    // Instructions
+    ctx.fillStyle = "#AAAAAA";
+    ctx.font = "18px Arial";
+    ctx.fillText("Your kingdom stands eternal", this.canvas.width / 2, this.canvas.height / 2 + 70);
   }
 
   drawAllLayers() {
@@ -932,6 +1022,9 @@ class Game {
     
     BUILDING_TYPES.GOLD_MINE.image = new Image();
     BUILDING_TYPES.GOLD_MINE.image.src = "../assets/goldMine.png";
+    
+    BUILDING_TYPES.MONUMENT.image = new Image();
+    BUILDING_TYPES.MONUMENT.image.src = "../assets/monument.png";
 
     // UI images
     this.uiManager.icons.banner = new Image();
